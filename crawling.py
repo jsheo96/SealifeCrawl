@@ -53,6 +53,7 @@ def do_crawl():
         traceback.print_exc()
     finally:
         driver.quit()
+        return data
 def crwal_sealife():
     driver = webdriver.Firefox()#('./chromedriver')
     delay = 10
@@ -92,12 +93,14 @@ def crawl_fishgg():
     soup = BeautifulSoup(response.content, 'html.parser')
     table = soup.find('table', {'class':'board list'})
     tr_list = table.find('tbody').findAll('tr')
+    data = {'data':[]}
     for tr in tr_list:
         title = tr.find('td',{'class':'title'}).text.strip()
         link = tr.find('td',{'class':'title'}).a.attrs['href']
         date = tr.find('td', {'class':'date res-500-hidden'}).text.strip()
         full_link = url_base + link
-        print(title,full_link,date)
+        data['data'].append({'title': title, 'full_link': full_link, 'date': date})
+    return data
 
 def crawl_fipa():
     url = 'https://www.fipa.or.kr/sub3/?mn_idx=0003_0041_0043_&dp1=3&dp2=2&dp3=2'
@@ -106,12 +109,14 @@ def crawl_fipa():
     soup = BeautifulSoup(response.content, 'html.parser')
     table = soup.find('table', {'class': 'board_st list tit'})
     tr_list = table.find('tbody').findAll('tr')
+    data = {'data':[]}
     for tr in tr_list:
         title = tr.find('td', {'class': 'w_tit'}).text.strip()
         link = tr.find('td', {'class': 'w_tit'}).a.attrs['href']
         date = tr.find('td', {'class': 'w_date'}).text.strip()
         full_link = url_base + link
-        print(title, full_link, date)
+        data['data'].append({'title': title, 'full_link': full_link, 'date': date})
+    return data
 
 def crawl_nifs():
     url = 'https://www.nifs.go.kr/dokdo/bbs?id=notice'
@@ -120,12 +125,14 @@ def crawl_nifs():
     soup = BeautifulSoup(response.content, 'html.parser')
     table = soup.find('table', {'summary': '공지사항 리스트 테이블'})
     tr_list = table.find('tbody').findAll('tr')
+    data = {'data':[]}
     for tr in tr_list:
         title = tr.find('td', {'class': 'al'}).text.strip()
         link = tr.find('td', {'class': 'al'}).a.attrs['href']
         date = tr.findAll('td')[3].text
         full_link = url_base + link
-        print(title, full_link, date)
+        data['data'].append({'title': title, 'full_link': full_link, 'date': date})
+    return data
 
 def crawl_mof():
     url = 'https://www.mof.go.kr/article/list.do?menuKey=971&boardKey=10'
@@ -134,42 +141,46 @@ def crawl_mof():
     soup = BeautifulSoup(response.content, 'html.parser')
     table = soup.find('table', {'class': 'boardBasic list'})
     tr_list = table.find('tbody').findAll('tr')
+    data = {'data':[]}
     for tr in tr_list:
         title = tr.find('td', {'class': 'title'}).text.strip()
         link = tr.find('td', {'class': 'title'}).a.attrs['href']
         date = tr.find('td', {'class': 'date'}).text
         full_link = url_base + link
-        print(title, full_link, date)
+        data['data'].append({'title': title, 'full_link': full_link, 'date': date})
+    return data
 
 def crawl_jeonnam():
     url = 'https://www.jeonnam.go.kr/M7116/boardList.do?menuId=jeonnam0202000000'
     url_base = 'https://www.jeonnam.go.kr'
     response = requests.get(url, verify=False)
     soup = BeautifulSoup(response.content, 'html.parser')
-    print(soup)
     table = soup.find('table', {'class': 'bbs_table petition_table'})
     tr_list = table.find('tbody').findAll('tr')
+    data = {'data':[]}
     for tr in tr_list:
         title = tr.find('td', {'class': 'title left petition'}).text.strip()
         link = tr.find('td', {'class': 'title left petition'}).a.attrs['href']
         date = tr.find('td', {'class': 'date'}).text
         full_link = url_base + link
-        print(title, full_link, date)
+        data['data'].append({'title': title, 'full_link': full_link, 'date': date})
+    return data
 
 def crawl_shinan():
     url = 'https://www.shinan.go.kr/home/www/openinfo/participation_07/participation_07_03'
     url_base = 'https://www.shinan.go.kr'
     response = requests.get(url, verify=False)
     soup = BeautifulSoup(response.content, 'html.parser')
-    print(soup)
     table = soup.find('table', {'class': 'list_table', 'id':'board_list_table'})
     tr_list = table.find('tbody').findAll('tr')
+    data = {'data':[]}
     for tr in tr_list:
         title = tr.find('td', {'class': 'list_title'}).text.strip()
         link = tr.find('td', {'class': 'list_title'}).a.attrs['href']
         date = tr.find('td', {'class': 'list_reg_date'}).text
         full_link = url_base + link
-        print(title, full_link, date)
+        data['data'].append({'title': title, 'full_link': full_link, 'date': date})
+    return data
 
 if __name__ == '__main__':
     crawl_shinan()
