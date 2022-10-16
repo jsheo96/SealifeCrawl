@@ -6,6 +6,8 @@ from bs4 import BeautifulSoup
 import traceback
 from selenium.webdriver.support import expected_conditions as EC
 import requests
+import re
+from utils import is_date
 def get_text(soup):
     title = soup.find('th').text
     tbody = soup.find('tbody')
@@ -15,13 +17,13 @@ def get_text(soup):
     content = tr_list[6].findAll('td')[0].text.strip()
     return title, phone, content
 
+# javascript necessray
 def do_crawl():
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
     driver = webdriver.Chrome(options=chrome_options)
-
     #driver = webdriver.Firefox()#'./chromedriver')
     data = {'data':[]}
     delay = 5
@@ -54,133 +56,96 @@ def do_crawl():
     finally:
         driver.quit()
         return data
-def crwal_sealife():
-    driver = webdriver.Firefox()#('./chromedriver')
-    delay = 10
-    try:
-        # 구글에 접속
-        driver.get('https://www.sealife.go.kr/subject/support/list.do')
 
-        html = driver.page_source
-        soup = BeautifulSoup(html, 'html.parser')
-        tab = soup.find("table",{"class":"t_typelA listTypeA"})
-        tbody = tab.find('tbody')
-        tr_list = tbody.findAll('tr')#.find('td').find('td')
-        for tr in tr_list:
-            td = tr.find('td',{'class':'txt_left'})
-            class_type = td.a.span.attrs['class'][0] # n1 or n2
-            if class_type == 'n1':
-                href = td.a.attrs['href']
-                driver.execute_script(href)
-                WebDriverWait(driver, delay).until(EC.presence_of_element_located((By.CLASS_NAME, 'contents')))
-                html = driver.page_source
-                soup = BeautifulSoup(html, 'html.parser')
-                title, phone, content = get_text(soup)
-                print('title:', title)
-                print('phone:', phone)
-                print('content:', content)
-                driver.execute_script("window.history.go(-1)")
-    except:
-        print("An exception occurred!")
-        traceback.print_exc()
-    finally:
-        driver.quit()
 
-def crawl_fishgg():
-    url = 'https://fish.gg.go.kr/noti/27'
-    url_base = 'https://fish.gg.go.kr'
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    table = soup.find('table', {'class':'board list'})
-    tr_list = table.find('tbody').findAll('tr')
-    data = {'data':[]}
+def crawl_table_by_selenium(url):
+    """
+    Crawl table rows from url.
+    It detects salient table and returns data from it.
+    :param url: URL of page where the table exists.
+    :return: Dict[List[Dict[title, full_link, date]]]
+    """
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
+    driver = webdriver.Chrome(options=chrome_options)
+    delay = 5
+    # driver.get('https://www.sealife.go.kr/subject/support/list.do')
+    driver.get(url)
+    WebDriverWait(driver, delay).until(EC.presence_of_element_located((By.TAG_NAME, 'tbody')))
+    html = driver.page_source
+    soup = BeautifulSoup(html, 'html.parser')
+    tbody_list = soup.findAll('tbody') # choose
+    # finds tbody with maximum number of tr's
+    assert len(tbody_list) >= 1, 'No tbody found in the response'
+
+    max_index = max(enumerate([len(tbody.findAll('tr')) for tbody in tbody_list]), key=lambda x:x[1])[0]
+    tbody = tbody_list[max_index]
+    tr_list = tbody.findAll('tr')
+    assert len(tr_list) >= 1, 'The table has no row'
+    data = {'data': []}
+    prev_td_list = None
     for tr in tr_list:
-        title = tr.find('td',{'class':'title'}).text.strip()
-        link = tr.find('td',{'class':'title'}).a.attrs['href']
-        date = tr.find('td', {'class':'date res-500-hidden'}).text.strip()
-        full_link = url_base + link
-        data['data'].append({'title': title, 'full_link': full_link, 'date': date})
+        td_list = tr.findAll('td')
+        td_texts = [td.text.strip().split('\n')[0] for td in td_list]
+        href = tr.find('a').attrs['href']
+        # Case 1: Absolute path
+        if href.startswith('/'): # link is absolute path
+            link = '/'.join(url.split('/')[:3]) + href
+        # Case 2: Relative path
+        else:
+            link = url.rsplit('/',1)[0] + '/' + href
+        date = next(filter(lambda x: is_date(x), td_texts), None)
+        assert date is not None, 'Cannot find the string for date'
+        title = max(td_texts, key=lambda x:len(x))
+        data['data'].append({'title': title, 'date': date, 'full_link': link})
+        assert prev_td_list == None or len(td_list) == len(prev_td_list), 'The table has inconsistent number of columns'
+        prev_td_list = td_list
+    print(data)
+    driver.quit()
+
     return data
 
-def crawl_fipa():
-    url = 'https://www.fipa.or.kr/sub3/?mn_idx=0003_0041_0043_&dp1=3&dp2=2&dp3=2'
-    url_base = 'https://fish.gg.go.kr'
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    table = soup.find('table', {'class': 'board_st list tit'})
-    tr_list = table.find('tbody').findAll('tr')
-    data = {'data':[]}
-    for tr in tr_list:
-        title = tr.find('td', {'class': 'w_tit'}).text.strip()
-        link = tr.find('td', {'class': 'w_tit'}).a.attrs['href']
-        date = tr.find('td', {'class': 'w_date'}).text.strip()
-        full_link = url_base + link
-        data['data'].append({'title': title, 'full_link': full_link, 'date': date})
-    return data
-
-def crawl_nifs():
-    url = 'https://www.nifs.go.kr/dokdo/bbs?id=notice'
-    url_base = 'https://www.nifs.go.kr/'
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    table = soup.find('table', {'summary': '공지사항 리스트 테이블'})
-    tr_list = table.find('tbody').findAll('tr')
-    data = {'data':[]}
-    for tr in tr_list:
-        title = tr.find('td', {'class': 'al'}).text.strip()
-        link = tr.find('td', {'class': 'al'}).a.attrs['href']
-        date = tr.findAll('td')[3].text
-        full_link = url_base + link
-        data['data'].append({'title': title, 'full_link': full_link, 'date': date})
-    return data
-
-def crawl_mof():
-    url = 'https://www.mof.go.kr/article/list.do?menuKey=971&boardKey=10'
-    url_base = 'https://www.mof.go.kr/article/'
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    table = soup.find('table', {'class': 'boardBasic list'})
-    tr_list = table.find('tbody').findAll('tr')
-    data = {'data':[]}
-    for tr in tr_list:
-        title = tr.find('td', {'class': 'title'}).text.strip()
-        link = tr.find('td', {'class': 'title'}).a.attrs['href']
-        date = tr.find('td', {'class': 'date'}).text
-        full_link = url_base + link
-        data['data'].append({'title': title, 'full_link': full_link, 'date': date})
-    return data
-
-def crawl_jeonnam():
-    url = 'https://www.jeonnam.go.kr/M7116/boardList.do?menuId=jeonnam0202000000'
-    url_base = 'https://www.jeonnam.go.kr'
+def crawl_table(url):
+    """
+    Crawl table rows from url.
+    It detects salient table and returns data from it.
+    :param url: URL of page where the table exists.
+    :return: Dict[List[Dict[title, full_link, date]]]
+    """
     response = requests.get(url, verify=False)
     soup = BeautifulSoup(response.content, 'html.parser')
-    table = soup.find('table', {'class': 'bbs_table petition_table'})
-    tr_list = table.find('tbody').findAll('tr')
-    data = {'data':[]}
+    tbody_list = soup.findAll('tbody') # choose
+    # finds tbody with maximum number of tr's
+    assert len(tbody_list) >= 1, 'No tbody found in the response'
+
+    max_index = max(enumerate([len(tbody.findAll('tr')) for tbody in tbody_list]), key=lambda x:x[1])[0]
+    tbody = tbody_list[max_index]
+    tr_list = tbody.findAll('tr')
+    assert len(tr_list) >= 1, 'The table has no row'
+    data = {'data': []}
+    prev_td_list = None
     for tr in tr_list:
-        title = tr.find('td', {'class': 'title left petition'}).text.strip()
-        link = tr.find('td', {'class': 'title left petition'}).a.attrs['href']
-        date = tr.find('td', {'class': 'date'}).text
-        full_link = url_base + link
-        data['data'].append({'title': title, 'full_link': full_link, 'date': date})
+        td_list = tr.findAll('td')
+        td_texts = [td.text.strip().split('\n')[0] for td in td_list]
+        href = tr.find('a').attrs['href']
+        # Case 1: Absolute path
+        if href.startswith('/'): # link is absolute path
+            link = '/'.join(url.split('/')[:3]) + href
+        # Case 2: Relative path
+        else:
+            link = url.rsplit('/',1)[0] + '/' + href
+        date = next(filter(lambda x: is_date(x), td_texts), None)
+        assert date is not None, 'Cannot find the string for date'
+        title = max(td_texts, key=lambda x:len(x))
+        data['data'].append({'title': title, 'date': date, 'full_link': link})
+        assert prev_td_list == None or len(td_list) == len(prev_td_list), 'The table has inconsistent number of columns'
+        prev_td_list = td_list
+    print(data)
     return data
 
-def crawl_shinan():
-    url = 'https://www.shinan.go.kr/home/www/openinfo/participation_07/participation_07_03'
-    url_base = 'https://www.shinan.go.kr'
-    response = requests.get(url, verify=False)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    table = soup.find('table', {'class': 'list_table', 'id':'board_list_table'})
-    tr_list = table.find('tbody').findAll('tr')
-    data = {'data':[]}
-    for tr in tr_list:
-        title = tr.find('td', {'class': 'list_title'}).text.strip()
-        link = tr.find('td', {'class': 'list_title'}).a.attrs['href']
-        date = tr.find('td', {'class': 'list_reg_date'}).text
-        full_link = url_base + link
-        data['data'].append({'title': title, 'full_link': full_link, 'date': date})
-    return data
-
+import url_list
 if __name__ == '__main__':
-    crawl_shinan()
+    for url in url_list.url_list:
+        crawl_table(url)
