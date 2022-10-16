@@ -8,6 +8,7 @@ from selenium.webdriver.support import expected_conditions as EC
 import requests
 import re
 from utils import is_date
+import url_list
 def get_text(soup):
     title = soup.find('th').text
     tbody = soup.find('tbody')
@@ -142,10 +143,15 @@ def crawl_table(url):
         data['data'].append({'title': title, 'date': date, 'full_link': link})
         assert prev_td_list == None or len(td_list) == len(prev_td_list), 'The table has inconsistent number of columns'
         prev_td_list = td_list
-    print(data)
     return data
 
-import url_list
+def crawl_url_list():
+    total_data = {'data': []}
+    for url in url_list.url_list:
+        data = crawl_table(url)
+        total_data['data'] = total_data['data'] + data['data']
+    return total_data
+
 if __name__ == '__main__':
     for url in url_list.url_list:
         crawl_table(url)
